@@ -62,11 +62,14 @@ export const getStudentByUuid = async (req, res) => {
 // UPDATE
 export const updateStudent = async (req, res) => {
   try {
-    const updated = await Student.findByIdAndUpdate(req.params.id, req.body, {
+    console.log("Received update for student id:", req.params.id);
+    let updated = await Student.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true
     });
-    if (!updated) return res.status(404).json({ error: 'Student not found' });
+    console.log("updated" , updated)
+    
+    updated = await updated.populate('followedTeachers.teacher').populate('followedTeachers.institute');
     res.status(200).json({ message: "student updated succefully!!!", data: updated });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -83,3 +86,4 @@ export const deleteStudent = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
