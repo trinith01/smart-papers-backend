@@ -13,6 +13,7 @@ import teacherRouter from './routes/teacherRouter.js';
 import setUserRoleRouter from './routes/setUserRole.js';
 import analysisRouter from './routes/analysisRouter.js';
 import llmRouter from './routes/llmRoutes.js';
+import imageRouter from './routes/imageRoutes.js';
 
 
 
@@ -35,6 +36,7 @@ app.use('/api/teachers', teacherRouter);
 app.use('/api/setUserRole', setUserRoleRouter);
 app.use('/api/analysis', analysisRouter);
 app.use('/api/llm', llmRouter);
+app.use(imageRouter);
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log('✅ MongoDB Connected');

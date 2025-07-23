@@ -1,4 +1,5 @@
 import Paper from "../models/Paper.js";
+import { uploadBase64Image } from "../utils/s3Helper.js";
 
 export const createPaper = async (req, res) => {
   try {
@@ -9,12 +10,29 @@ export const createPaper = async (req, res) => {
       return res.status(400).json({ message: "Title, author, and at least one question are required." });
     }
 
+    // Handle question images: upload to S3 and store image ID
+    const processedQuestions = await Promise.all(
+      questions.map(async (q) => {
+        let imageId = q.questionImage;
+        if (q.questionImage && q.questionImage.startsWith("data:image/jpeg;base64,")) {
+          // Extract base64 part
+          const base64 = q.questionImage.split(",").pop();
+          imageId = await uploadBase64Image(base64);
+        }
+        // Optionally handle answerReviewImage similarly if needed
+        return {
+          ...q,
+          questionImage: imageId, // store S3 image ID
+        };
+      })
+    );
+
     // Create new paper
     const newPaper = new Paper({
       title,
       author,
       subject: subject || "General",  // optional, fallback to "General"
-      questions,
+      questions: processedQuestions,
       availability,                   // expect array of { institute, startTime, endTime }
       year,
       category: category || "theory"
@@ -24,15 +42,31 @@ export const createPaper = async (req, res) => {
     await newPaper.save();
     console.log("New Paper:", newPaper);
 
-    res.status(201).json({ message: "Paper created successfully", paper: newPaper });
+    // Prepare response: replace questionImage with /image?id=... URL
+    const paperObj = newPaper.toObject();
+    paperObj.questions = paperObj.questions.map(q => ({
+      ...q,
+      questionImage: q.questionImage ? `/image?id=${q.questionImage}` : null
+    }));
+
+    res.status(201).json({ message: "Paper created successfully", paper: paperObj });
   } catch (error) {
     console.error("Error creating paper:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
-// Get papers where any availability startTime is in the future
-
+// When returning papers, replace questionImage with /image?id=... URL
+function mapPaperImages(paper) {
+  const obj = paper.toObject ? paper.toObject() : paper;
+  if (Array.isArray(obj.questions)) {
+    obj.questions = obj.questions.map(q => ({
+      ...q,
+      questionImage: q.questionImage ? `/image?id=${q.questionImage}` : null
+    }));
+  }
+  return obj;
+}
 
 export const getAvailablePapers = async (req, res) => {
   try {
@@ -52,16 +86,18 @@ export const getAvailablePapers = async (req, res) => {
       availability: {
         $elemMatch: {
           institute: instituteId,
-        
         }
       }
     })
     .populate('author')
     .populate('availability.institute');
 
+    // Map questionImage to /image?id=... URL
+    const mappedPapers = papers.map(mapPaperImages);
+
     res.status(200).json({
       message: "Available papers retrieved successfully",
-      papers
+      papers: mappedPapers
     });
 
   } catch (error) {
@@ -69,7 +105,6 @@ export const getAvailablePapers = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
-
 
 export const getAllPapers = async (req, res) => {
   try {
@@ -79,13 +114,13 @@ export const getAllPapers = async (req, res) => {
       return res.status(404).json({ message: "No papers found." });
     }
 
-    res.status(200).json({ message: "Papers retrieved successfully", papers });
+    const mappedPapers = papers.map(mapPaperImages);
+    res.status(200).json({ message: "Papers retrieved successfully", papers: mappedPapers });
   } catch (error) {
     console.error("Error getting all papers:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
-
 
 export const getPapersByAuthor = async (req, res) => {
   try {
@@ -101,7 +136,8 @@ export const getPapersByAuthor = async (req, res) => {
       return res.status(404).json({ message: "No papers found for this author." });
     }
 
-    res.status(200).json({ message: "Papers retrieved successfully", papers });
+    const mappedPapers = papers.map(mapPaperImages);
+    res.status(200).json({ message: "Papers retrieved successfully", papers: mappedPapers });
   } catch (error) {
     console.error("Error getting papers by author:", error);
     res.status(500).json({ message: "Internal server error" });
