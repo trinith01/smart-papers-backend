@@ -1,0 +1,50 @@
+name: Deploy to EC2 from GHCR
+
+on:
+  workflow_dispatch:
+  registry_package:
+    types: [published]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Deploy container on EC2
+        env:
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          IMAGE: ghcr.io/${{ github.repository }}:latest
+        run: |
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST << 'EOF'
+            set -xe
+
+            # Log in to GHCR
+            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # Pull the latest image
+            docker pull $IMAGE
+
+            # Stop and remove any existing container
+            if docker ps -q -f name=smartpapers-backend; then
+              docker stop smartpapers-backend
+            fi
+            if docker ps -aq -f name=smartpapers-backend; then
+              docker rm smartpapers-backend
+            fi
+
+            # Run the new container
+            docker run -d \
+              --name smartpapers-backend \
+              -p 3000:3000 \
+              --restart unless-stopped \
+              $IMAGE
+          EOF
