@@ -28,21 +28,21 @@ jobs:
             set -xe
 
             # Log in to GHCR
-            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            echo ${{ secrets.GITHUB_TOKEN }} | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             # Pull the latest image
-            docker pull $IMAGE
+            sudo docker pull $IMAGE
 
             # Stop and remove any existing container
-            if docker ps -q -f name=smartpapers-backend; then
-              docker stop smartpapers-backend
+            if sudo docker ps -q -f name=smartpapers-backend; then
+              sudo docker stop smartpapers-backend
             fi
-            if docker ps -aq -f name=smartpapers-backend; then
-              docker rm smartpapers-backend
+            if sudo docker ps -aq -f name=smartpapers-backend; then
+              sudo docker rm smartpapers-backend
             fi
 
             # Run the new container
-            docker run -d \
+            sudo docker run -d \
               --name smartpapers-backend \
               -p 3000:3000 \
               --restart unless-stopped \
