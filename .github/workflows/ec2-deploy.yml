@@ -31,7 +31,7 @@ jobs:
             echo ${{ secrets.GITHUB_TOKEN }} | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             # Pull the latest image
-            sudo docker pull $IMAGE
+            sudo docker pull ghcr.io/${{ github.repository }}:latest
 
             # Stop and remove any existing container
             if sudo docker ps -q -f name=smartpapers-backend; then
@@ -44,7 +44,7 @@ jobs:
             # Run the new container
             sudo docker run -d \
               --name smartpapers-backend \
-              -p 3000:3000 \
+              -p 5000:5000 \
               --restart unless-stopped \
-              $IMAGE
+              ghcr.io/${{ github.repository }}:latest
           EOF
