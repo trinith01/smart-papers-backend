@@ -22,7 +22,6 @@ jobs:
         env:
           EC2_USER: ${{ secrets.EC2_USER }}
           EC2_HOST: ${{ secrets.EC2_HOST }}
-          IMAGE: ghcr.io/${{ github.repository }}:latest
         run: |
           ssh -o BatchMode=yes -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST << 'EOF'
             set -xe
@@ -30,8 +29,8 @@ jobs:
             # Log in to GHCR
             echo ${{ secrets.GITHUB_TOKEN }} | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            # Pull the latest image
-            sudo docker pull ghcr.io/${{ github.repository }}:latest
+            # Pull the main branch image
+            sudo docker pull ghcr.io/${{ github.repository }}:main
 
             # Stop and remove any existing container
             if sudo docker ps -q -f name=smartpapers-backend; then
@@ -46,5 +45,6 @@ jobs:
               --name smartpapers-backend \
               -p 5000:5000 \
               --restart unless-stopped \
-              ghcr.io/${{ github.repository }}:latest
+              --env-file .env \
+              ghcr.io/${{ github.repository }}:main
           EOF
