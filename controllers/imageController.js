@@ -23,6 +23,7 @@ export const getImage = async (req, res) => {
     res.set('Content-Type', 'image/jpeg');
     res.send(buffer);
   } catch (err) {
+    console.error("Error retrieving image:", err);
     res.status(404).send('Image not found');
   }
 };

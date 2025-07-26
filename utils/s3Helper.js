@@ -26,5 +26,19 @@ export function getImageKey(id, folder = 'questions') {
 export async function getImageBuffer(id, folder = 'questions') {
   const key = getImageKey(id, folder);
   const data = await s3.getObject({ Bucket: BUCKET, Key: key });
-  return data.Body;
+  if (Buffer.isBuffer(data.Body)) {
+    return data.Body;
+  }
+  if (data.Body instanceof Uint8Array) {
+    return Buffer.from(data.Body);
+  }
+  // If it's a stream, convert to Buffer
+  if (typeof data.Body?.pipe === 'function') {
+    const chunks = [];
+    for await (const chunk of data.Body) {
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
+  }
+  throw new Error('Unknown S3 Body type');
 }
