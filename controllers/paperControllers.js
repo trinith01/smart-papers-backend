@@ -1,6 +1,8 @@
 import Paper from "../models/Paper.js";
 import { uploadBase64Image } from "../utils/s3Helper.js";
 
+const API_BASE_URL = process.env.API_BASE_URL;
+
 export const createPaper = async (req, res) => {
   try {
     const { title, author, questions, availability, subject, year, category } = req.body;
@@ -46,7 +48,7 @@ export const createPaper = async (req, res) => {
     const paperObj = newPaper.toObject();
     paperObj.questions = paperObj.questions.map(q => ({
       ...q,
-      questionImage: q.questionImage ? `/image?id=${q.questionImage}` : null
+      questionImage: q.questionImage ? `${API_BASE_URL}/image?id=${q.questionImage}` : null
     }));
 
     res.status(201).json({ message: "Paper created successfully", paper: paperObj });
@@ -62,7 +64,7 @@ function mapPaperImages(paper) {
   if (Array.isArray(obj.questions)) {
     obj.questions = obj.questions.map(q => ({
       ...q,
-      questionImage: q.questionImage ? `/image?id=${q.questionImage}` : null
+      questionImage: q.questionImage ? `${API_BASE_URL}/image?id=${q.questionImage}` : null
     }));
   }
   return obj;
