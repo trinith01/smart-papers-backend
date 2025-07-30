@@ -4,7 +4,7 @@ import fs from 'fs';
 
 dotenv.config();
 
-const serviceAccount = JSON.parse(fs.readFileSync(process.env.FIREBASE_SERVICE_ACCOUNT_PATH, 'utf8'));
+const serviceAccount = JSON.parse(fs.readFileSync("/app/firebase.json", 'utf8'));
 
 // Initialize Firebase Admin SDK only once
 if (!admin.apps.length) {
