@@ -1,5 +1,6 @@
 import Paper from "../models/Paper.js";
 import { uploadBase64Image } from "../utils/s3Helper.js";
+import { mapPaperImages } from "../utils/imageMapper.js";
 
 const API_BASE_URL = process.env.API_BASE_URL;
 
@@ -45,11 +46,7 @@ export const createPaper = async (req, res) => {
     console.log("New Paper:", newPaper);
 
     // Prepare response: replace questionImage with /image?id=... URL
-    const paperObj = newPaper.toObject();
-    paperObj.questions = paperObj.questions.map(q => ({
-      ...q,
-      questionImage: q.questionImage ? `${API_BASE_URL}/image?id=${q.questionImage}` : null
-    }));
+    const paperObj = mapPaperImages(newPaper);
 
     res.status(201).json({ message: "Paper created successfully", paper: paperObj });
   } catch (error) {
@@ -57,18 +54,6 @@ export const createPaper = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
-
-// When returning papers, replace questionImage with /image?id=... URL
-function mapPaperImages(paper) {
-  const obj = paper.toObject ? paper.toObject() : paper;
-  if (Array.isArray(obj.questions)) {
-    obj.questions = obj.questions.map(q => ({
-      ...q,
-      questionImage: q.questionImage ? `${API_BASE_URL}/image?id=${q.questionImage}` : null
-    }));
-  }
-  return obj;
-}
 
 export const getAvailablePapers = async (req, res) => {
   try {

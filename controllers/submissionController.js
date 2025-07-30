@@ -1,6 +1,8 @@
 import Submisstion from "../models/Submisstion.js";
 import Paper from "../models/Paper.js";
 
+const API_BASE_URL = process.env.API_BASE_URL;
+
 export const createSubmission = async (req, res) => {
   try {
     const { studentId, paperId, answers } = req.body;
@@ -89,6 +91,9 @@ export const getStudentSubmissionsWithQuestions = async (req, res) => {
         const question = paper?.questions?.find(
           (q) => q._id.toString() === ans.questionId.toString()
         );
+        if (question) {
+          question.questionImage = question.questionImage ? `${API_BASE_URL}/image?id=${question.questionImage}` : null;
+        }
         return {
           ...ans.toObject(),
           question: question ? question.toObject() : null,

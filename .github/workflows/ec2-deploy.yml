@@ -44,6 +44,7 @@ jobs:
             sudo docker run -d \
               --name smartpapers-backend \
               -p 5000:5000 \
+              -v /home/ec2-user/firebase.json:/app/firebase.json \
               --restart unless-stopped \
               --env-file .env \
               ghcr.io/${{ github.repository }}:main
