@@ -9,5 +9,5 @@ FROM node:18-alpine AS production
 WORKDIR /app
 COPY --from=builder /app /app
 COPY . .
-EXPOSE 5000
+EXPOSE 443
 CMD ["node", "server.js"]
