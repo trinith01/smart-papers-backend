@@ -43,9 +43,12 @@ jobs:
             # Run the new container
             sudo docker run -d \
               --name smartpapers-backend \
-              -p 5000:5000 \
               -v /home/ec2-user/firebase.json:/app/firebase.json \
               --restart unless-stopped \
               --env-file .env \
+              --network proxy-net \
+              -e VIRTUAL_HOST=${{ secrets.VIRTUAL_HOST }} \
+              -e LETSENCRYPT_HOST=${{ secrets.LETSENCRYPT_HOST }} \
+              -e LETSENCRYPT_EMAIL=${{ secrets.LETSENCRYPT_EMAIL }} \
               ghcr.io/${{ github.repository }}:main
           EOF
