@@ -14,7 +14,8 @@ import setUserRoleRouter from './routes/setUserRole.js';
 import analysisRouter from './routes/analysisRouter.js';
 import llmRouter from './routes/llmRoutes.js';
 import imageRouter from './routes/imageRoutes.js';
-
+import videoRouter from './routes/videoRoutes.js';
+import questionBankRouter from './routes/questioBankRoutes.js';
 
 
 import './models/index.js';
@@ -36,7 +37,10 @@ app.use('/api/teachers', teacherRouter);
 app.use('/api/setUserRole', setUserRoleRouter);
 app.use('/api/analysis', analysisRouter);
 app.use('/api/llm', llmRouter);
+app.use('/api/videos', videoRouter);
+app.use('/api/questionBank', questionBankRouter);
 app.use(imageRouter);
+
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log('✅ MongoDB Connected');
