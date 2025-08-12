@@ -48,6 +48,7 @@ jobs:
               --env-file .env \
               --network proxy-net \
               -e VIRTUAL_HOST=${{ secrets.VIRTUAL_HOST }} \
+              -e VIRTUAL_PORT=443 \
               -e LETSENCRYPT_HOST=${{ secrets.LETSENCRYPT_HOST }} \
               -e LETSENCRYPT_EMAIL=${{ secrets.LETSENCRYPT_EMAIL }} \
               ghcr.io/${{ github.repository }}:main
