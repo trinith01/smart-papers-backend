@@ -124,6 +124,7 @@ export const getPapersByAuthor = async (req, res) => {
     }
 
     const mappedPapers = papers.map(mapPaperImages);
+    
     res.status(200).json({ message: "Papers retrieved successfully", papers: mappedPapers });
   } catch (error) {
     console.error("Error getting papers by author:", error);

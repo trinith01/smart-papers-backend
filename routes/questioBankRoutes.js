@@ -4,12 +4,14 @@ import {
   getAllSets,
   getSetByAuthor,
   updateQuestion,
-  deleteQuestion
+  deleteQuestion,
+  AddQuestionBank
 } from "../controllers/QuestionBankController.js";
 
 const questionBankRouter = express.Router();
 
-questionBankRouter.post("/:authorId", addQuestion);
+questionBankRouter.post("/:questionBankId", addQuestion);
+questionBankRouter.post("/", AddQuestionBank);
 questionBankRouter.get("/", getAllSets);
 questionBankRouter.get("/author/:authorId", getSetByAuthor);
 questionBankRouter.put("/:authorId/question/:questionId", updateQuestion);

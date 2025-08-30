@@ -6,11 +6,13 @@ const questionSchema = new mongoose.Schema({
   category: { type: String, required: true },
   difficulty: { type: String, enum: ["easy", "medium", "hard"], required: true },
   unitName: { type: String, required: true },
-  subunitName: { type: String, required: true },
+  subunitName: { type: String  },
 }, { _id: true });
 
 const authorQuestionSetSchema = new mongoose.Schema({
   author: { type: mongoose.Schema.Types.ObjectId, ref: "Teacher", required: true },
+
+  name: { type: String, required: true },
   questions: [questionSchema],
 }, { timestamps: true });
 
