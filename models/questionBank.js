@@ -7,6 +7,9 @@ const questionSchema = new mongoose.Schema({
   difficulty: { type: String, enum: ["easy", "medium", "hard"], required: true },
   unitName: { type: String, required: true },
   subunitName: { type: String  },
+  answer: { type: Number,  },
+  usedCount: { type: Number, default: 0 },
+  lastUsed: { type: Date  },
 }, { _id: true });
 
 const authorQuestionSetSchema = new mongoose.Schema({

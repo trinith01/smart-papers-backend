@@ -2,7 +2,7 @@ import { Schema, model } from 'mongoose';
 
 const questionSchema = new Schema({
     questionImage: { type: String, required: true },
-    answerReviewImage: { type: String, required: true },
+    answerReviewImage: { type: String, },
     correctAnswer: { type: Number, required: true },
     category: { type: String, required: true, default: 'GeneralCat' },
     subcategory: { type: String }
