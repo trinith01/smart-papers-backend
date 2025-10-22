@@ -4,6 +4,7 @@ import Institute from './institutes.js';
 const studentSchema = new Schema({
   name: { type: String, required: true },
   uuid: { type: String, required: true, unique: true },
+  barcode: { type: String, default: null },
  
   email: { type: String, required: true, unique: true },
   year: { type: String, required: true },

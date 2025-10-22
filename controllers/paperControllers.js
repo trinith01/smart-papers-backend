@@ -81,10 +81,29 @@ export const getAvailablePapers = async (req, res) => {
 
     // Map questionImage to /image?id=... URL
     const mappedPapers = papers.map(mapPaperImages);
+    
+    // Filter papers based on availability for the specific institute
+    const futurePapers = mappedPapers.filter(paper => 
+      paper.availability.some(avail => 
+        avail.institute.toString() === instituteId && 
+        new Date(avail.startTime) > now
+      )
+    );
+    
+    const currentPapers = mappedPapers.filter(paper => 
+      paper.availability.some(avail => 
+        avail.institute.toString() === instituteId && 
+        new Date(avail.startTime) <= now && 
+        new Date(avail.endTime) >= now
+      )
+    );
 
     res.status(200).json({
       message: "Available papers retrieved successfully",
-      papers: mappedPapers
+      success: true,
+      //papers: mappedPapers,
+      futurePapers: futurePapers,
+      currentPapers: currentPapers,
     });
 
   } catch (error) {

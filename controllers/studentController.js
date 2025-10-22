@@ -6,7 +6,7 @@ export const registerStudent = async (req, res) => {
     const { name, email, followedTeachers, year,  uuid } = req.body;
 
     // Validate inputs
-    if (!name || !email  || !year  |followedTeachers| !uuid) {
+    if (!name || !email || !year || !followedTeachers || !uuid) {
       return res.status(400).json({ message: "All fields are required." });
     }
 
