@@ -68,31 +68,20 @@ export const getAvailablePapers = async (req, res) => {
     const now = new Date();
     const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000); // add 1 hour
 
-    // Convert string IDs to ObjectIds for proper MongoDB comparison
-    const teacherObjectId = new mongoose.Types.ObjectId(teacherId);
-    const instituteObjectId = new mongoose.Types.ObjectId(instituteId);
-
-    console.log("Query params converted:", {
-      teacherId: teacherObjectId,
+    console.log("Query params:", {
+      teacherId,
       category,
       year,
-      instituteId: instituteObjectId
+      instituteId
     });
 
-    // Try both ObjectId and string versions for author field
     const papers = await Paper.find({
-      $or: [
-        { author: teacherObjectId },
-        { author: teacherId }
-      ],
+      author: teacherId, // String comparison works fine
       year,
       category,
       availability: {
         $elemMatch: {
-          $or: [
-            { institute: instituteObjectId },
-            { institute: instituteId }
-          ]
+          institute: instituteId, // String comparison works fine
         }
       }
     })
@@ -100,54 +89,52 @@ export const getAvailablePapers = async (req, res) => {
     .populate('availability.institute');
     console.log(`Found ${papers.length} papers matching criteria.`);
 
-    // Debug: Let's also check what papers exist for this author regardless of institute
-    const allAuthorPapers = await Paper.find({ author: teacherObjectId });
-    console.log(`Total papers for author ${teacherId}:`, allAuthorPapers.length);
-    
-    // Let's also check all papers in the database to see what authors exist
-    const allPapers = await Paper.find({});
-    console.log(`Total papers in database: ${allPapers.length}`);
-    
-    if (allPapers.length > 0) {
-      console.log("Sample papers with authors:");
-      allPapers.slice(0, 3).forEach((paper, index) => {
-        console.log(`Paper ${index + 1}:`, {
-          id: paper._id,
-          title: paper.title,
-          author: paper.author,
-          authorType: typeof paper.author,
-          year: paper.year,
-          category: paper.category
-        });
-      });
-    }
-    
-    // Let's also try the original string comparison
-    const papersByStringAuthor = await Paper.find({ author: teacherId });
-    console.log(`Papers found with string author ID: ${papersByStringAuthor.length}`);
-    
-    if (allAuthorPapers.length > 0) {
-      console.log("Sample paper availability:", allAuthorPapers[0].availability);
-    }
+
 
     // Map questionImage to /image?id=... URL
     const mappedPapers = papers.map(mapPaperImages);
     
     // Filter papers based on availability for the specific institute
-    const futurePapers = mappedPapers.filter(paper => 
-      paper.availability.some(avail => 
-        avail.institute.toString() === instituteId && 
-        new Date(avail.startTime) > now
-      )
-    );
+    const futurePapers = mappedPapers.filter(paper => {
+      return paper.availability.some(avail => {
+        // Handle different ways the institute might be stored/populated
+        let instituteId_str;
+        if (avail.institute && typeof avail.institute === 'object' && avail.institute._id) {
+          // Populated object with _id
+          instituteId_str = avail.institute._id.toString();
+        } else if (avail.institute) {
+          // Direct ObjectId or string
+          instituteId_str = avail.institute.toString();
+        }
+        
+        const instituteMatches = instituteId_str === instituteId;
+        const startTime = new Date(avail.startTime);
+        const isFuture = startTime > now;
+        
+        return instituteMatches && isFuture;
+      });
+    });
     
-    const currentPapers = mappedPapers.filter(paper => 
-      paper.availability.some(avail => 
-        avail.institute.toString() === instituteId && 
-        new Date(avail.startTime) <= now && 
-        new Date(avail.endTime) >= now
-      )
-    );
+    const currentPapers = mappedPapers.filter(paper => {
+      return paper.availability.some(avail => {
+        // Handle different ways the institute might be stored/populated
+        let instituteId_str;
+        if (avail.institute && typeof avail.institute === 'object' && avail.institute._id) {
+          // Populated object with _id
+          instituteId_str = avail.institute._id.toString();
+        } else if (avail.institute) {
+          // Direct ObjectId or string
+          instituteId_str = avail.institute.toString();
+        }
+        
+        const instituteMatches = instituteId_str === instituteId;
+        const startTime = new Date(avail.startTime);
+        const endTime = new Date(avail.endTime);
+        const isCurrent = startTime <= now && endTime >= now;
+        
+        return instituteMatches && isCurrent;
+      });
+    });
 
     res.status(200).json({
       message: "Available papers retrieved successfully",
