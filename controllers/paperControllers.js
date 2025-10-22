@@ -1,6 +1,7 @@
 import Paper from "../models/Paper.js";
 import { uploadBase64Image } from "../utils/s3Helper.js";
 import { mapPaperImages } from "../utils/imageMapper.js";
+import mongoose from "mongoose";
 
 const API_BASE_URL = process.env.API_BASE_URL;
 
@@ -56,6 +57,7 @@ export const createPaper = async (req, res) => {
 };
 
 export const getAvailablePapers = async (req, res) => {
+  console.log("Get available papers request query:", req.query);
   try {
     const { teacherId, category, year, instituteId } = req.query;
 
@@ -66,18 +68,67 @@ export const getAvailablePapers = async (req, res) => {
     const now = new Date();
     const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000); // add 1 hour
 
+    // Convert string IDs to ObjectIds for proper MongoDB comparison
+    const teacherObjectId = new mongoose.Types.ObjectId(teacherId);
+    const instituteObjectId = new mongoose.Types.ObjectId(instituteId);
+
+    console.log("Query params converted:", {
+      teacherId: teacherObjectId,
+      category,
+      year,
+      instituteId: instituteObjectId
+    });
+
+    // Try both ObjectId and string versions for author field
     const papers = await Paper.find({
-      author: teacherId,
+      $or: [
+        { author: teacherObjectId },
+        { author: teacherId }
+      ],
       year,
       category,
       availability: {
         $elemMatch: {
-          institute: instituteId,
+          $or: [
+            { institute: instituteObjectId },
+            { institute: instituteId }
+          ]
         }
       }
     })
     .populate('author')
     .populate('availability.institute');
+    console.log(`Found ${papers.length} papers matching criteria.`);
+
+    // Debug: Let's also check what papers exist for this author regardless of institute
+    const allAuthorPapers = await Paper.find({ author: teacherObjectId });
+    console.log(`Total papers for author ${teacherId}:`, allAuthorPapers.length);
+    
+    // Let's also check all papers in the database to see what authors exist
+    const allPapers = await Paper.find({});
+    console.log(`Total papers in database: ${allPapers.length}`);
+    
+    if (allPapers.length > 0) {
+      console.log("Sample papers with authors:");
+      allPapers.slice(0, 3).forEach((paper, index) => {
+        console.log(`Paper ${index + 1}:`, {
+          id: paper._id,
+          title: paper.title,
+          author: paper.author,
+          authorType: typeof paper.author,
+          year: paper.year,
+          category: paper.category
+        });
+      });
+    }
+    
+    // Let's also try the original string comparison
+    const papersByStringAuthor = await Paper.find({ author: teacherId });
+    console.log(`Papers found with string author ID: ${papersByStringAuthor.length}`);
+    
+    if (allAuthorPapers.length > 0) {
+      console.log("Sample paper availability:", allAuthorPapers[0].availability);
+    }
 
     // Map questionImage to /image?id=... URL
     const mappedPapers = papers.map(mapPaperImages);
