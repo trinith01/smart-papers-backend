@@ -1,5 +1,4 @@
 import Paper from "../models/Paper.js";
-import { mapPaperImages } from "../utils/imageMapper.js";
 import mongoose from "mongoose";
 
 const API_BASE_URL = process.env.API_BASE_URL;
@@ -48,10 +47,7 @@ export const createPaper = async (req, res) => {
     await newPaper.save();
     console.log("New Paper:", newPaper);
 
-    // Prepare response: replace questionImage with /image?id=... URL
-    const paperObj = mapPaperImages(newPaper);
-
-    res.status(201).json({ message: "Paper created successfully", paper: paperObj });
+    res.status(201).json({ message: "Paper created successfully", paper: newPaper });
   } catch (error) {
     console.error("Error creating paper:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -90,14 +86,9 @@ export const getAvailablePapers = async (req, res) => {
     .populate('author')
     .populate('availability.institute');
     console.log(`Found ${papers.length} papers matching criteria.`);
-
-
-
-    // Map questionImage to /image?id=... URL
-    const mappedPapers = papers.map(mapPaperImages);
     
     // Filter papers based on availability for the specific institute
-    const futurePapers = mappedPapers.filter(paper => {
+    const futurePapers = papers.filter(paper => {
       return paper.availability.some(avail => {
         // Handle different ways the institute might be stored/populated
         let instituteId_str;
@@ -116,8 +107,8 @@ export const getAvailablePapers = async (req, res) => {
         return instituteMatches && isFuture;
       });
     });
-    
-    const currentPapers = mappedPapers.filter(paper => {
+
+    const currentPapers = papers.filter(paper => {
       return paper.availability.some(avail => {
         // Handle different ways the institute might be stored/populated
         let instituteId_str;
@@ -160,8 +151,7 @@ export const getAllPapers = async (req, res) => {
       return res.status(404).json({ message: "No papers found." });
     }
 
-    const mappedPapers = papers.map(mapPaperImages);
-    res.status(200).json({ message: "Papers retrieved successfully", papers: mappedPapers });
+    res.status(200).json({ message: "Papers retrieved successfully", papers });
   } catch (error) {
     console.error("Error getting all papers:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -181,10 +171,8 @@ export const getPapersByAuthor = async (req, res) => {
     if (papers.length === 0) {
       return res.status(404).json({ message: "No papers found for this author." });
     }
-
-    const mappedPapers = papers.map(mapPaperImages);
     
-    res.status(200).json({ message: "Papers retrieved successfully", papers: mappedPapers });
+    res.status(200).json({ message: "Papers retrieved successfully", papers });
   } catch (error) {
     console.error("Error getting papers by author:", error);
     res.status(500).json({ message: "Internal server error" });
