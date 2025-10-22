@@ -1,7 +1,6 @@
 import QuestionBank from "../models/questionBank.js";
 
 import { uploadBase64Image } from "../utils/s3Helper.js";
-import { getImageUrl } from "../utils/imageMapper.js";
 export const AddQuestionBank = async (req, res) => {
   const {name , author} = req.body;
   const newQuestionBank = new QuestionBank({
@@ -76,13 +75,6 @@ export const addQuestion = async (req, res) => {
 export const getAllSets = async (req, res) => {
   try {
     const sets = await QuestionBank.find().populate("author", "name email");
-    sets.forEach((set) => {
-      set.questions = set.questions.map((q) => ({
-        ...q.toObject(),
-        questionImage: getImageUrl(q.questionImage),
-        answerImage: getImageUrl(q.answerImage),
-      }));
-    })
     res.json(sets);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -97,15 +89,7 @@ export const getSetByAuthor = async (req, res) => {
       res.json([]);
       return;
     }
-    const setsWithImages = sets.map(set => ({
-      ...set.toObject(),
-      questions: (set.questions || []).map(q => ({
-        ...q.toObject(),
-        questionImage: getImageUrl(q.questionImage),
-        answerImage: getImageUrl(q.answerImage),
-      }))
-    }));
-    res.json(setsWithImages);
+    res.json(sets);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

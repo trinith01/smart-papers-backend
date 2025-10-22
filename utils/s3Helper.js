@@ -1,5 +1,5 @@
 import { S3 } from '@aws-sdk/client-s3';
-import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 
 const s3 = new S3({ region: process.env.AWS_REGION });
 
@@ -7,7 +7,7 @@ const BUCKET = process.env.AWS_S3_BUCKET;
 
 export async function uploadBase64Image(base64, folder = 'questions') {
   const buffer = Buffer.from(base64, 'base64');
-  const id = uuidv4();
+  const id = crypto.randomUUID();
   const key = `${folder}/${id}.jpg`;
   await s3.putObject({
     Bucket: BUCKET,

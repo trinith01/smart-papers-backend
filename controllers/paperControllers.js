@@ -1,6 +1,4 @@
 import Paper from "../models/Paper.js";
-import { uploadBase64Image } from "../utils/s3Helper.js";
-import { mapPaperImages } from "../utils/imageMapper.js";
 import mongoose from "mongoose";
 
 const API_BASE_URL = process.env.API_BASE_URL;
@@ -14,30 +12,33 @@ export const createPaper = async (req, res) => {
       return res.status(400).json({ message: "Title, author, and at least one question are required." });
     }
 
-    // Handle question images: upload to S3 and store image ID
-    const processedQuestions = await Promise.all(
-      questions.map(async (q) => {
-        let imageId = q.questionImage;
-        if (q.questionImage && q.questionImage.startsWith("data:image/jpeg;base64,")) {
-          // Extract base64 part
-          const base64 = q.questionImage.split(",").pop();
-          imageId = await uploadBase64Image(base64);
-        }
-        // Optionally handle answerReviewImage similarly if needed
-        return {
-          ...q,
-          questionImage: imageId, // store S3 image ID
-        };
-      })
+    // Validate that all questions have image IDs (not base64)
+    const invalidQuestions = questions.filter(q => 
+      !q.questionImage || 
+      !q.answerReviewImage ||
+      q.questionImage.startsWith("data:image/") ||
+      q.answerReviewImage.startsWith("data:image/")
     );
 
-    // Create new paper
+    if (invalidQuestions.length > 0) {
+      return res.status(400).json({ 
+        message: "All questions must have uploaded image IDs. Please upload images first using /images endpoint." 
+      });
+    }
+
+    // Create new paper with image IDs directly
     const newPaper = new Paper({
       title,
       author,
-      subject: subject || "General",  // optional, fallback to "General"
-      questions: processedQuestions,
-      availability,                   // expect array of { institute, startTime, endTime }
+      subject: subject || "General",
+      questions: questions.map(q => ({
+        questionImage: q.questionImage,
+        answerReviewImage: q.answerReviewImage,
+        correctAnswer: q.correctAnswer,
+        category: q.category,
+        subcategory: q.subcategory || undefined
+      })),
+      availability,
       year,
       category: category || "theory"
     });
@@ -46,10 +47,7 @@ export const createPaper = async (req, res) => {
     await newPaper.save();
     console.log("New Paper:", newPaper);
 
-    // Prepare response: replace questionImage with /image?id=... URL
-    const paperObj = mapPaperImages(newPaper);
-
-    res.status(201).json({ message: "Paper created successfully", paper: paperObj });
+    res.status(201).json({ message: "Paper created successfully", paper: newPaper });
   } catch (error) {
     console.error("Error creating paper:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -88,14 +86,9 @@ export const getAvailablePapers = async (req, res) => {
     .populate('author')
     .populate('availability.institute');
     console.log(`Found ${papers.length} papers matching criteria.`);
-
-
-
-    // Map questionImage to /image?id=... URL
-    const mappedPapers = papers.map(mapPaperImages);
     
     // Filter papers based on availability for the specific institute
-    const futurePapers = mappedPapers.filter(paper => {
+    const futurePapers = papers.filter(paper => {
       return paper.availability.some(avail => {
         // Handle different ways the institute might be stored/populated
         let instituteId_str;
@@ -114,8 +107,8 @@ export const getAvailablePapers = async (req, res) => {
         return instituteMatches && isFuture;
       });
     });
-    
-    const currentPapers = mappedPapers.filter(paper => {
+
+    const currentPapers = papers.filter(paper => {
       return paper.availability.some(avail => {
         // Handle different ways the institute might be stored/populated
         let instituteId_str;
@@ -158,8 +151,7 @@ export const getAllPapers = async (req, res) => {
       return res.status(404).json({ message: "No papers found." });
     }
 
-    const mappedPapers = papers.map(mapPaperImages);
-    res.status(200).json({ message: "Papers retrieved successfully", papers: mappedPapers });
+    res.status(200).json({ message: "Papers retrieved successfully", papers });
   } catch (error) {
     console.error("Error getting all papers:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -179,10 +171,8 @@ export const getPapersByAuthor = async (req, res) => {
     if (papers.length === 0) {
       return res.status(404).json({ message: "No papers found for this author." });
     }
-
-    const mappedPapers = papers.map(mapPaperImages);
     
-    res.status(200).json({ message: "Papers retrieved successfully", papers: mappedPapers });
+    res.status(200).json({ message: "Papers retrieved successfully", papers });
   } catch (error) {
     console.error("Error getting papers by author:", error);
     res.status(500).json({ message: "Internal server error" });
