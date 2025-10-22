@@ -1,5 +1,4 @@
 import Paper from "../models/Paper.js";
-import { uploadBase64Image } from "../utils/s3Helper.js";
 import { mapPaperImages } from "../utils/imageMapper.js";
 import mongoose from "mongoose";
 
@@ -14,30 +13,33 @@ export const createPaper = async (req, res) => {
       return res.status(400).json({ message: "Title, author, and at least one question are required." });
     }
 
-    // Handle question images: upload to S3 and store image ID
-    const processedQuestions = await Promise.all(
-      questions.map(async (q) => {
-        let imageId = q.questionImage;
-        if (q.questionImage && q.questionImage.startsWith("data:image/jpeg;base64,")) {
-          // Extract base64 part
-          const base64 = q.questionImage.split(",").pop();
-          imageId = await uploadBase64Image(base64);
-        }
-        // Optionally handle answerReviewImage similarly if needed
-        return {
-          ...q,
-          questionImage: imageId, // store S3 image ID
-        };
-      })
+    // Validate that all questions have image IDs (not base64)
+    const invalidQuestions = questions.filter(q => 
+      !q.questionImage || 
+      !q.answerReviewImage ||
+      q.questionImage.startsWith("data:image/") ||
+      q.answerReviewImage.startsWith("data:image/")
     );
 
-    // Create new paper
+    if (invalidQuestions.length > 0) {
+      return res.status(400).json({ 
+        message: "All questions must have uploaded image IDs. Please upload images first using /images endpoint." 
+      });
+    }
+
+    // Create new paper with image IDs directly
     const newPaper = new Paper({
       title,
       author,
-      subject: subject || "General",  // optional, fallback to "General"
-      questions: processedQuestions,
-      availability,                   // expect array of { institute, startTime, endTime }
+      subject: subject || "General",
+      questions: questions.map(q => ({
+        questionImage: q.questionImage,
+        answerReviewImage: q.answerReviewImage,
+        correctAnswer: q.correctAnswer,
+        category: q.category,
+        subcategory: q.subcategory || undefined
+      })),
+      availability,
       year,
       category: category || "theory"
     });

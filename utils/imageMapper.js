@@ -3,21 +3,10 @@ export function mapPaperImages(paper) {
   const obj = paper.toObject ? paper.toObject() : paper;
   if (Array.isArray(obj.questions)) {
     obj.questions = obj.questions.map(q => {
-      let image = null;
-      if (q.questionImage) {
-        if (q.questionImage.startsWith("data:image/")) {
-          image = q.questionImage;
-        } else if (q.questionImage.startsWith("http")) {
-          image = q.questionImage;
-        } else if (q.questionImage.startsWith("id=")) {
-          image = `${API_BASE_URL}/image?${q.questionImage}`;
-        } else {
-          image = `${API_BASE_URL}/image?id=${q.questionImage}`;
-        }
-      }
       return {
         ...q,
-        questionImage: image
+        questionImage: getImageUrl(q.questionImage),
+        answerReviewImage: getImageUrl(q.answerReviewImage)
       };
     });
   }
@@ -38,4 +27,3 @@ export function getImageUrl(value) {
     return `${API_BASE_URL}/image?id=${value}`; // plain id → .../image?id=123
   }
 }
-
