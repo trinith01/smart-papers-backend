@@ -187,27 +187,71 @@ export const getPaperStats = async (req, res) => {
     // Paper (for question indexing)
     const paper = await Paper.findById(paperId).lean();
     if (!paper) return res.status(404).json({ error: "Paper not found" });
-    // const qById = new Map(
-    //   (paper.questions || []).map((q, i) => [
-    //     String(q._id),
-    //     {
-    //       questionId: q._id,
-    //       questionIndex: i,
-    //       questionImage: q.questionImage,
-    //       answerReviewImage: q.answerReviewImage,
-    //       correctAnswer: q.correctAnswer,
-    //       category: q.category,
-    //       subcategory: q.subcategory ?? null,
-    //     },
-    //   ])
-    // );
-
     const qIndex = new Map(
-      (paper.questions || []).map((q, i) => [String(q._id), i])
+      (paper.questions || []).map((q, i) => [
+        String(q._id),
+        {
+          questionId: q._id,
+          questionIndex: i,
+          questionImage: q.questionImage,
+          answerReviewImage: q.answerReviewImage,
+          correctAnswer: q.correctAnswer,
+          category: q.category,
+          subcategory: q.subcategory ?? null,
+        },
+      ])
     );
+
+    // const qIndex = new Map(
+    //   (paper.questions || []).map((q, i) => [String(q._id), i])
+    // );
 
     // Stats (for QuestionResults)
     const stats = await paperStats.findOne({ paperId }).lean();
+
+    // If stats don't exist, check if paper has ended and return availability info
+    if (!stats) {
+      // Get the latest end time from all availability entries
+      const latestEndTime = paper.availability && paper.availability.length > 0 
+        ? Math.max(...paper.availability.map(avail => new Date(avail.endTime).getTime()))
+        : null;
+
+      if (latestEndTime) {
+        const endTime = new Date(latestEndTime);
+        const availableTime = new Date(latestEndTime + 60000); // Add 1 minute (60000 ms)
+        
+        return res.status(200).json({
+          ok: false,
+          statsNotReady: true,
+          data: {
+            paper: {
+              _id: paper._id,
+              title: paper.title,
+              subject: paper.subject,
+              questionsCount: paper.questions?.length || 0,
+            },
+            paperEndTime: endTime,
+            statsAvailableAt: availableTime,
+            message: "The Related Rank Sheet and Leaderboard will be shown one minute after the end time of the paper"
+          }
+        });
+      }
+      
+      // If no availability info, return generic message
+      return res.status(200).json({
+        ok: false,
+        statsNotReady: true,
+        data: {
+          paper: {
+            _id: paper._id,
+            title: paper.title,
+            subject: paper.subject,
+            questionsCount: paper.questions?.length || 0,
+          },
+          message: "Paper statistics are being processed. Please check back later."
+        }
+      });
+    }
 
     const questionResultsSorted = (stats?.QuestionResults || [])
       .map((qr) => ({
