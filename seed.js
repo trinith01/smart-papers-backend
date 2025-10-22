@@ -17,7 +17,7 @@ dotenv.config();
  */
 
 // ===== Config =====
-const MONGODB_URI = process.env.MONGODB_URI
+const MONGODB_URI = process.env.MONGO_URI
 
 const TEACHER_ID = "688e0cb2786955788cd0029c";
 const INSTITUTE_A = "686914bf3700d5d526983c52";

@@ -17,7 +17,7 @@ dotenv.config();
  */
 
 // ===== Config =====
-const MONGODB_URI = process.env.MONGODB_URI 
+const MONGODB_URI = process.env.MONGO_URI 
 
 // ===== Institute Data =====
 const institutes = [
@@ -27,8 +27,10 @@ const institutes = [
   },
   {
     name: "Viduna", 
-    location: "Galle"
-  }
+    location: "Galle",
+
+  },
+  
 ];
 
 // ===== Database Connection =====
