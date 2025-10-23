@@ -6,12 +6,29 @@ import paperStats from "../models/paperStats.js";
 import Submisstion from "../models/Submisstion.js";
 
 /**
- * POST /paper-stats/:paperId/build
+ * POST /paper-stats/:paperId
+ * PUT /paper-stats/:paperId/rebuild 
+ * 
  * Build or rebuild stats for a paperId.
+ * 
+ * If a paperStats document already exists for the given paperId:
+ * - All attributes (QuestionResults, instituteStats) will be completely replaced with new values
+ * - The updatedAt timestamp will be automatically updated
+ * 
+ * Query Parameters:
+ * - force=true: Force rebuild even if stats already exist (same behavior as default, but logged differently)
+ * 
+ * Behavior:
+ * - Uses findOneAndUpdate with upsert:true to handle both create and update scenarios
+ * - Completely replaces arrays (QuestionResults, instituteStats) with newly calculated values
+ * - Handles duplicate key errors gracefully with retry logic
+ * - Returns summary of what was processed and the action taken
  */
 export const buildPaperStats = async (req, res) => {
   try {
     const { paperId } = req.params;
+    const { force } = req.query; // Check for force rebuild parameter
+    
     if (!mongoose.isValidObjectId(paperId)) {
       return res.status(400).json({ error: "Invalid paperId" });
     }
@@ -146,16 +163,52 @@ export const buildPaperStats = async (req, res) => {
       });
     }
 
-    // -------- Upsert PaperStats --------
+    // -------- Check if PaperStats already exists --------
+    const existingStats = await paperStats.findOne({ paperId }).lean();
+    
+    if (existingStats) {
+      if (force === 'true') {
+        console.log(`[buildPaperStats] Force rebuilding existing stats for paperId: ${paperId}`);
+      } else {
+        console.log(`[buildPaperStats] Updating existing stats for paperId: ${paperId}`);
+      }
+    } else {
+      console.log(`[buildPaperStats] Creating new stats for paperId: ${paperId}`);
+    }
+    
+    // Log some basic info about what we're about to process
+    console.log(`[buildPaperStats] Paper has ${paper.questions?.length || 0} questions`);
+    
+    // Get total submission count for this paper
+    const totalSubmissions = await Submisstion.countDocuments({
+      paperId: new mongoose.Types.ObjectId(paperId),
+      status: "done",
+    });
+    console.log(`[buildPaperStats] Found ${totalSubmissions} completed submissions to analyze`);
+    
+    if (totalSubmissions === 0) {
+      console.log(`[buildPaperStats] No completed submissions found for paperId: ${paperId}`);
+      // Still create stats but with empty results
+    }
+
+    // -------- Upsert PaperStats - Replace all attributes with new values --------
     const updated = await paperStats
       .findOneAndUpdate(
         { paperId },
         {
-          paperId,
-          QuestionResults: questionResults, // <-- array [{questionId, totalIncorrect}]
-          instituteStats, // <-- array per institute
+          $set: {
+            paperId,
+            QuestionResults: questionResults, // <-- array [{questionId, totalIncorrect}]
+            instituteStats, // <-- array per institute
+            updatedAt: new Date() // Add timestamp for when stats were last updated
+          }
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { 
+          upsert: true, 
+          new: true, 
+          setDefaultsOnInsert: true,
+          runValidators: true // Ensure schema validation runs
+        }
       )
       .populate({
         path: "instituteStats.topStudents",
@@ -164,9 +217,62 @@ export const buildPaperStats = async (req, res) => {
       })
       .lean();
 
-    return res.status(200).json({ ok: true, data: updated });
+    console.log(`[buildPaperStats] Successfully ${existingStats ? 'updated' : 'created'} stats for paperId: ${paperId}`);
+    
+    const actionType = existingStats 
+      ? (force === 'true' ? 'force rebuilt' : 'updated') 
+      : 'created';
+    
+    return res.status(200).json({ 
+      ok: true, 
+      data: updated,
+      message: `Paper stats ${actionType} successfully`,
+      summary: {
+        paperId: paperId,
+        questionsAnalyzed: questionResults.length,
+        institutesFound: instituteStats.length,
+        totalSubmissions: totalSubmissions,
+        actionTaken: actionType,
+        wasExisting: !!existingStats
+      }
+    });
   } catch (err) {
     console.error("[buildPaperStats] error:", err);
+    
+    // Handle duplicate key error specifically
+    if (err.code === 11000) {
+      console.error("[buildPaperStats] Duplicate key error, attempting retry with findOneAndUpdate");
+      try {
+        // Retry with a direct update
+        const retryUpdate = await paperStats.findOneAndUpdate(
+          { paperId },
+          {
+            $set: {
+              QuestionResults: questionResults,
+              instituteStats,
+            }
+          },
+          { new: true, runValidators: true }
+        ).populate({
+          path: "instituteStats.topStudents",
+          select: "studentId score submittedAt",
+          model: "Submission",
+        }).lean();
+        
+        return res.status(200).json({ 
+          ok: true, 
+          data: retryUpdate,
+          message: 'Paper stats updated successfully (after retry)'
+        });
+      } catch (retryErr) {
+        console.error("[buildPaperStats] Retry failed:", retryErr);
+        return res.status(500).json({ 
+          error: "Failed to update paper stats", 
+          details: String(retryErr) 
+        });
+      }
+    }
+    
     return res
       .status(500)
       .json({ error: "Internal error", details: String(err) });
