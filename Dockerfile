@@ -22,4 +22,4 @@ RUN mkdir -p logs
 
 EXPOSE 5000
 
-CMD ["pm2-runtime", "start", "ecosystem.config.js"]
+CMD ["pm2-runtime", "start", "ecosystem.config.cjs"]
