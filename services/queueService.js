@@ -20,10 +20,7 @@ class QueueService {
    * @returns {Promise<string>} jobId - Unique job identifier
    */
   async enqueueSubmission(submissionData) {
-    const jobId = uuidv4();
-    
     const messageBody = {
-      jobId,
       ...submissionData,
       enqueuedAt: new Date().toISOString(),
     };

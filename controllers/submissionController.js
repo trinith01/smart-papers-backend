@@ -3,6 +3,7 @@ import Paper from '../models/Paper.js';
 import PaperStats from '../models/paperStats.js';
 import SubmissionJob from '../models/SubmissionJob.js';
 import queueService from '../services/queueService.js';
+import { v4 as uuidv4 } from 'uuid';
 import mongoose from 'mongoose';
 
 const API_BASE_URL = process.env.API_BASE_URL;
@@ -76,17 +77,22 @@ export const createSubmission = async (req, res) => {
       return res.status(404).json({ message: "Quiz not found." });
     }
 
+    // Generate jobId first
+    const jobId = uuidv4();
+
+    // Extract instituteId if it's an object
+    const instituteIdValue = typeof instituteId === 'object' ? instituteId._id : instituteId;
+
     // Create job record immediately
     const submissionJob = new SubmissionJob({
+      jobId,
       studentId,
       paperId,
-      instituteId,
+      instituteId: instituteIdValue,
       status: 'queued',
     });
 
-    // Generate jobId before saving
     await submissionJob.save();
-    const jobId = submissionJob.jobId;
 
     // Enqueue submission to SQS
     try {
@@ -95,7 +101,7 @@ export const createSubmission = async (req, res) => {
         studentId,
         paperId,
         answers,
-        instituteId,
+        instituteId: instituteIdValue,
       });
 
       // Return immediately with jobId
