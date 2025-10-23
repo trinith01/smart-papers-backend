@@ -1,6 +1,8 @@
 import Submission from '../models/Submisstion.js';
 import Paper from '../models/Paper.js';
 import PaperStats from '../models/paperStats.js';
+import SubmissionJob from '../models/SubmissionJob.js';
+import queueService from '../services/queueService.js';
 import mongoose from 'mongoose';
 
 const API_BASE_URL = process.env.API_BASE_URL;
@@ -60,55 +62,68 @@ export const getStudentPaperScoresWithAverages = async (req, res) => {
 
 export const createSubmission = async (req, res) => {
   try {
-    const { studentId, paperId, answers , instituteId } = req.body;
-    console.log("reqesut submition from frontend", req.body);
+    const { studentId, paperId, answers, instituteId } = req.body;
+    console.log("Request submission from frontend", req.body);
 
     // Validate inputs
     if (!studentId || !paperId || !answers || !Array.isArray(answers)) {
       return res.status(400).json({ message: "Missing required data." });
     }
 
-    // Get the quiz (paper) with questions
+    // Quick validation that paper exists
     const paper = await Paper.findById(paperId);
     if (!paper) {
       return res.status(404).json({ message: "Quiz not found." });
     }
-    console.log("paperf based on provided id", paper);
-    // res.status(200).json({message:"submission created successfully", paper:paper})
 
-    // Analyze answers and set reviewed: true for correct, false for incorrect
-    const questionResults = [];
-    let score = 0;
-    for (let i = 0; i < paper.questions.length; i++) {
-      const question = paper.questions[i];
-      const selectedAnswer = answers[i]?.answer;
-      const isCorrect = selectedAnswer === question.correctAnswer;
-      if (isCorrect) score++;
-      questionResults.push({
-        questionId: question._id,
-        selectedAnswer,
-        isCorrect,
-        reviewed: isCorrect, // reviewed true if correct, false if incorrect
-      });
-    }
-    // Create submission
-    const submission = new Submission({
+    // Create job record immediately
+    const submissionJob = new SubmissionJob({
       studentId,
       paperId,
       instituteId,
-      answers: questionResults,
-      submittedAt: new Date(),
-      status: "done",
-      score,
+      status: 'queued',
     });
-    await submission.save();
-    res.status(201).json({
-      message: "Submission successful",
-      submissionId: submission._id,
-      score,
-      total: paper.questions.length,
-      correctAnswers: score,
-    });
+
+    // Generate jobId before saving
+    await submissionJob.save();
+    const jobId = submissionJob.jobId;
+
+    // Enqueue submission to SQS
+    try {
+      await queueService.enqueueSubmission({
+        jobId,
+        studentId,
+        paperId,
+        answers,
+        instituteId,
+      });
+
+      // Return immediately with jobId
+      return res.status(202).json({
+        message: "Submission queued for processing",
+        jobId,
+        status: "queued",
+        statusUrl: `/api/submissions/status/${jobId}`,
+      });
+
+    } catch (queueError) {
+      // If queueing fails, mark job as failed
+      await SubmissionJob.findOneAndUpdate(
+        { jobId },
+        { 
+          status: 'failed', 
+          error: queueError.message,
+          completedAt: new Date()
+        }
+      );
+      
+      console.error("Error enqueueing submission:", queueError);
+      return res.status(500).json({ 
+        message: "Failed to queue submission",
+        error: queueError.message 
+      });
+    }
+
   } catch (error) {
     console.error("Error creating submission:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -262,6 +277,55 @@ export const getStudentSubmissionsWithQuestions = async (req, res) => {
     res.status(200).json({ submissions: result });
   } catch (error) {
     console.error("Error fetching student submissions with questions:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+/**
+ * Get submission job status by jobId
+ */
+export const getSubmissionStatus = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+
+    const job = await SubmissionJob.findOne({ jobId })
+      .select('jobId status submissionId result error createdAt startedAt completedAt attempts');
+
+    if (!job) {
+      return res.status(404).json({ 
+        message: "Job not found",
+        jobId 
+      });
+    }
+
+    const response = {
+      jobId: job.jobId,
+      status: job.status,
+      createdAt: job.createdAt,
+      startedAt: job.startedAt,
+      completedAt: job.completedAt,
+      attempts: job.attempts,
+    };
+
+    // Include result if completed
+    if (job.status === 'completed' && job.result) {
+      response.result = {
+        submissionId: job.submissionId,
+        score: job.result.score,
+        total: job.result.total,
+        correctAnswers: job.result.correctAnswers,
+      };
+    }
+
+    // Include error if failed
+    if (job.status === 'failed' && job.error) {
+      response.error = job.error;
+    }
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error("Error fetching submission status:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };

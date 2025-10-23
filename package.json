@@ -7,26 +7,31 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "worker": "node worker.js",
+    "worker:dev": "nodemon worker.js",
     "seed": "node seed.js",
     "subseed": "node sub-seed.js",
     "institute-seed": "node institute-seed.js"
-    
   },
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.850.0",
+    "@aws-sdk/client-sqs": "^3.914.0",
     "@google/generative-ai": "^0.24.1",
     "bcryptjs": "^3.0.2",
+    "bull": "^4.16.5",
     "cors": "^2.8.5",
     "dotenv": "^17.0.0",
     "express": "^5.1.0",
     "firebase": "^11.10.0",
     "firebase-admin": "^13.4.0",
+    "ioredis": "^5.8.2",
     "lru-cache": "^11.1.0",
     "mongoose": "^8.16.1",
-    "node-cron": "^4.2.1"
+    "node-cron": "^4.2.1",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
