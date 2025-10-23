@@ -1,4 +1,4 @@
-import {createSubmission} from "../controllers/submissionController.js";
+import {createSubmission, getSubmissionStatus} from "../controllers/submissionController.js";
 import { getDonePapers  , getStudentSubmissionsWithQuestions} from "../controllers/submissionController.js";
 import { getStudentIncorrectSummary } from "../controllers/submmitionsAnalyseControllers.js";
 import { getStudentPaperScoresWithAverages } from "../controllers/submissionController.js";
@@ -9,6 +9,7 @@ const submissionRouter = express.Router();
 
 // POST /submissions
 submissionRouter.post('/', createSubmission);
+submissionRouter.get('/status/:jobId', getSubmissionStatus);
 submissionRouter.get('/done/:studentId', getDonePapers);
 submissionRouter.get('/questions/:studentId', getStudentSubmissionsWithQuestions);
 submissionRouter.get('/incorrectSummery/:studentId', getStudentIncorrectSummary);
