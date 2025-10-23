@@ -73,7 +73,7 @@ Or manually:
 
 ```bash
 cd backend
-npm install  # Already done - includes @aws-sdk/client-sqs, bull, ioredis
+npm install  # Already done - includes @aws-sdk/client-sqs
 ```
 
 ### 3. Configure Environment
