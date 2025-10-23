@@ -13,14 +13,19 @@ export async function processSubmission(messageBody) {
   console.log(`🔄 Processing submission jobId: ${jobId}`);
 
   try {
-    // Update job status to processing
+    // Create or update job record to processing status
     await SubmissionJob.findOneAndUpdate(
       { jobId },
       { 
+        jobId,
+        studentId,
+        paperId,
+        instituteId,
         status: 'processing',
         startedAt: new Date(),
         $inc: { attempts: 1 }
-      }
+      },
+      { upsert: true, new: true }
     );
 
     // Validate inputs

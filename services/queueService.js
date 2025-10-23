@@ -16,12 +16,15 @@ class QueueService {
 
   /**
    * Send a submission to the queue
-   * @param {Object} submissionData - The submission data
+   * @param {Object} submissionData - The submission data (without jobId)
    * @returns {Promise<string>} jobId - Unique job identifier
    */
   async enqueueSubmission(submissionData) {
-    const { jobId } = submissionData;
+    // Generate jobId here
+    const jobId = uuidv4();
+    
     const messageBody = {
+      jobId,
       ...submissionData,
       enqueuedAt: new Date().toISOString(),
     };

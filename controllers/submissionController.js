@@ -3,7 +3,6 @@ import Paper from '../models/Paper.js';
 import PaperStats from '../models/paperStats.js';
 import SubmissionJob from '../models/SubmissionJob.js';
 import queueService from '../services/queueService.js';
-import { v4 as uuidv4 } from 'uuid';
 import mongoose from 'mongoose';
 
 const API_BASE_URL = process.env.API_BASE_URL;
@@ -77,27 +76,12 @@ export const createSubmission = async (req, res) => {
       return res.status(404).json({ message: "Quiz not found." });
     }
 
-    // Generate jobId first
-    const jobId = uuidv4();
-
     // Extract instituteId if it's an object
     const instituteIdValue = typeof instituteId === 'object' ? instituteId._id : instituteId;
 
-    // Create job record immediately
-    const submissionJob = new SubmissionJob({
-      jobId,
-      studentId,
-      paperId,
-      instituteId: instituteIdValue,
-      status: 'queued',
-    });
-
-    await submissionJob.save();
-
-    // Enqueue submission to SQS
+    // Enqueue submission to SQS (jobId generated in queueService)
     try {
-      await queueService.enqueueSubmission({
-        jobId,
+      const jobId = await queueService.enqueueSubmission({
         studentId,
         paperId,
         answers,
@@ -113,16 +97,6 @@ export const createSubmission = async (req, res) => {
       });
 
     } catch (queueError) {
-      // If queueing fails, mark job as failed
-      await SubmissionJob.findOneAndUpdate(
-        { jobId },
-        { 
-          status: 'failed', 
-          error: queueError.message,
-          completedAt: new Date()
-        }
-      );
-      
       console.error("Error enqueueing submission:", queueError);
       return res.status(500).json({ 
         message: "Failed to queue submission",
@@ -299,9 +273,11 @@ export const getSubmissionStatus = async (req, res) => {
       .select('jobId status submissionId result error createdAt startedAt completedAt attempts');
 
     if (!job) {
-      return res.status(404).json({ 
-        message: "Job not found",
-        jobId 
+      // Job not in database yet - still in SQS queue, not picked up by worker
+      return res.status(200).json({ 
+        jobId,
+        status: "queued",
+        message: "Submission is queued and waiting to be processed"
       });
     }
 
