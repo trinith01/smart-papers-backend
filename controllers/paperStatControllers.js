@@ -27,7 +27,7 @@ import Submisstion from "../models/Submisstion.js";
 export const buildPaperStats = async (req, res) => {
   try {
     const { paperId } = req.params;
-    const { force } = req.query; // Check for force rebuild parameter
+    const force = req.query.force === "true"; // Check for force rebuild parameter
     
     if (!mongoose.isValidObjectId(paperId)) {
       return res.status(400).json({ error: "Invalid paperId" });
