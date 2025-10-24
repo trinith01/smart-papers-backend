@@ -324,7 +324,7 @@ export const getPaperStats = async (req, res) => {
 
       if (latestEndTime) {
         const endTime = new Date(latestEndTime);
-        const availableTime = new Date(latestEndTime + 60000); // Add 1 minute (60000 ms)
+        const availableTime = new Date(latestEndTime + 300000); // Add 5 minutes (300000 ms)
         
         return res.status(200).json({
           ok: false,
@@ -338,7 +338,7 @@ export const getPaperStats = async (req, res) => {
             },
             paperEndTime: endTime,
             statsAvailableAt: availableTime,
-            message: "The Related Rank Sheet and Leaderboard will be shown one minute after the end time of the paper"
+            message: "The Related Rank Sheet and Leaderboard will be shown five minutes after the end time of the paper"
           }
         });
       }

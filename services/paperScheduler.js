@@ -59,8 +59,8 @@ class PaperScheduler {
             continue;
           }
 
-          // Schedule the job to run 1 minute after end time
-          const triggerTime = new Date(endTime.getTime() + 60 * 1000);
+            // Schedule the job to run 5 minutes after end time
+            const triggerTime = new Date(endTime.getTime() + 5 * 60 * 1000);
           
           this.schedulePostPaperProcessing(paper._id, scheduleKey, triggerTime);
         }
