@@ -24,11 +24,264 @@ import Submisstion from "../models/Submisstion.js";
  * - Handles duplicate key errors gracefully with retry logic
  * - Returns summary of what was processed and the action taken
  */
+// export const buildPaperStats = async (req, res) => {
+//   try {
+//     const { paperId } = req.params;
+//     const force = req.query.force === "true"; // Check for force rebuild parameter
+    
+//     if (!mongoose.isValidObjectId(paperId)) {
+//       return res.status(400).json({ error: "Invalid paperId" });
+//     }
+
+//     const paper = await Paper.findById(paperId).lean();
+//     if (!paper) return res.status(404).json({ error: "Paper not found" });
+
+//     // -------- Per-question incorrect counts --------
+//     const perQuestion = await Submisstion.aggregate([
+//       {
+//         $match: {
+//           paperId: new mongoose.Types.ObjectId(paperId),
+//           status: "done",
+//         },
+//       },
+//       { $unwind: "$answers" },
+//       { $match: { "answers.isCorrect": false } },
+//       {
+//         $group: {
+//           _id: "$answers.questionId",
+//           totalIncorrect: { $sum: 1 },
+//         },
+//       },
+//       {
+//         $project: {
+//           _id: 0,
+//           questionId: "$_id",
+//           totalIncorrect: 1,
+//         },
+//       },
+//     ]);
+
+//     // Ensure every question appears (even if 0 incorrect)
+//     const incorrectMap = new Map(
+//       perQuestion.map((q) => [String(q.questionId), q.totalIncorrect])
+//     );
+//     const questionResults = paper.questions.map((q) => ({
+//       questionId: q._id,
+//       totalIncorrect: incorrectMap.get(String(q._id)) || 0,
+//     }));
+
+//     // -------- Per-institute stats (avg/max/min/total & top students) --------
+//     // effectiveScore := use stored score OR compute (# of correct answers) if score missing
+//     const perInstitute = await Submisstion.aggregate([
+//       {
+//         $match: {
+//           paperId: new mongoose.Types.ObjectId(paperId),
+//           status: "done",
+//         },
+//       },
+//       {
+//         $addFields: {
+//           effectiveScore: {
+//             $ifNull: [
+//               "$score",
+//               {
+//                 $size: {
+//                   $filter: {
+//                     input: "$answers",
+//                     as: "a",
+//                     cond: { $eq: ["$$a.isCorrect", true] },
+//                   },
+//                 },
+//               },
+//             ],
+//           },
+//         },
+//       },
+//       {
+//         $group: {
+//           _id: "$instituteId",
+//           totalStudents: { $sum: 1 },
+//           avg: { $avg: "$effectiveScore" },
+//           max: { $max: "$effectiveScore" },
+//           min: { $min: "$effectiveScore" },
+//         },
+//       },
+//       {
+//         $project: {
+//           _id: 0,
+//           instituteId: "$_id",
+//           averageMarks: { $round: ["$avg", 2] },
+//           totalStudents: 1,
+//           maxMarks: "$max",
+//           minMarks: "$min",
+//         },
+//       },
+//     ]);
+
+//     // For each institute, collect top 5 submissions by effectiveScore
+//     // (Do a quick per-institute query)
+//     const instituteStats = [];
+//     for (const inst of perInstitute) {
+//       const topSubs = await Submisstion.aggregate([
+//         {
+//           $match: {
+//             paperId: new mongoose.Types.ObjectId(paperId),
+//             status: "done",
+//             instituteId: inst.instituteId,
+//           },
+//         },
+//         {
+//           $addFields: {
+//             effectiveScore: {
+//               $ifNull: [
+//                 "$score",
+//                 {
+//                   $size: {
+//                     $filter: {
+//                       input: "$answers",
+//                       as: "a",
+//                       cond: { $eq: ["$$a.isCorrect", true] },
+//                     },
+//                   },
+//                 },
+//               ],
+//             },
+//           },
+//         },
+//         { $sort: { effectiveScore: -1, submittedAt: 1, _id: 1 } },
+//         { $limit: 5 },
+//         { $project: { _id: 1 } },
+//       ]);
+
+//       instituteStats.push({
+//         instituteId: inst.instituteId,
+//         averageMarks: inst.averageMarks,
+//         totalStudents: inst.totalStudents,
+//         maxMarks: inst.maxMarks,
+//         minMarks: inst.minMarks,
+//         topStudents: topSubs.map((s) => s._id),
+//       });
+//     }
+
+//     // -------- Check if PaperStats already exists --------
+//     const existingStats = await paperStats.findOne({ paperId }).lean();
+    
+//     if (existingStats) {
+//       if (force === 'true') {
+//         console.log(`[buildPaperStats] Force rebuilding existing stats for paperId: ${paperId}`);
+//       } else {
+//         console.log(`[buildPaperStats] Updating existing stats for paperId: ${paperId}`);
+//       }
+//     } else {
+//       console.log(`[buildPaperStats] Creating new stats for paperId: ${paperId}`);
+//     }
+    
+//     // Log some basic info about what we're about to process
+//     console.log(`[buildPaperStats] Paper has ${paper.questions?.length || 0} questions`);
+    
+//     // Get total submission count for this paper
+//     const totalSubmissions = await Submisstion.countDocuments({
+//       paperId: new mongoose.Types.ObjectId(paperId),
+//       status: "done",
+//     });
+//     console.log(`[buildPaperStats] Found ${totalSubmissions} completed submissions to analyze`);
+    
+//     if (totalSubmissions === 0) {
+//       console.log(`[buildPaperStats] No completed submissions found for paperId: ${paperId}`);
+//       // Still create stats but with empty results
+//     }
+
+//     // -------- Upsert PaperStats - Replace all attributes with new values --------
+//     const updated = await paperStats
+//       .findOneAndUpdate(
+//         { paperId },
+//         {
+//           $set: {
+//             paperId,
+//             QuestionResults: questionResults, // <-- array [{questionId, totalIncorrect}]
+//             instituteStats, // <-- array per institute
+//             updatedAt: new Date() // Add timestamp for when stats were last updated
+//           }
+//         },
+//         { 
+//           upsert: true, 
+//           new: true, 
+//           setDefaultsOnInsert: true,
+//           runValidators: true // Ensure schema validation runs
+//         }
+//       )
+//       .populate({
+//         path: "instituteStats.topStudents",
+//         select: "studentId score submittedAt",
+//         model: "Submission",
+//       })
+//       .lean();
+
+//     console.log(`[buildPaperStats] Successfully ${existingStats ? 'updated' : 'created'} stats for paperId: ${paperId}`);
+    
+//     const actionType = existingStats 
+//       ? (force === 'true' ? 'force rebuilt' : 'updated') 
+//       : 'created';
+    
+//     return res.status(200).json({ 
+//       ok: true, 
+//       data: updated,
+//       message: `Paper stats ${actionType} successfully`,
+//       summary: {
+//         paperId: paperId,
+//         questionsAnalyzed: questionResults.length,
+//         institutesFound: instituteStats.length,
+//         totalSubmissions: totalSubmissions,
+//         actionTaken: actionType,
+//         wasExisting: !!existingStats
+//       }
+//     });
+//   } catch (err) {
+//     console.error("[buildPaperStats] error:", err);
+    
+//     // Handle duplicate key error specifically
+//     if (err.code === 11000) {
+//       console.error("[buildPaperStats] Duplicate key error, attempting retry with findOneAndUpdate");
+//       try {
+//         // Retry with a direct update
+//         const retryUpdate = await paperStats.findOneAndUpdate(
+//           { paperId },
+//           {
+//             $set: {
+//               QuestionResults: questionResults,
+//               instituteStats,
+//             }
+//           },
+//           { new: true, runValidators: true }
+//         ).populate({
+//           path: "instituteStats.topStudents",
+//           select: "studentId score submittedAt",
+//           model: "Submission",
+//         }).lean();
+        
+//         return res.status(200).json({ 
+//           ok: true, 
+//           data: retryUpdate,
+//           message: 'Paper stats updated successfully (after retry)'
+//         });
+//       } catch (retryErr) {
+//         console.error("[buildPaperStats] Retry failed:", retryErr);
+//         return res.status(500).json({ 
+//           error: "Failed to update paper stats", 
+//           details: String(retryErr) 
+//         });
+//       }
+//     }
+    
+//     return res
+//       .status(500)
+//       .json({ error: "Internal error", details: String(err) });
+//   }
+// };
+
 export const buildPaperStats = async (req, res) => {
   try {
     const { paperId } = req.params;
-    const force = req.query.force === "true"; // Check for force rebuild parameter
-    
     if (!mongoose.isValidObjectId(paperId)) {
       return res.status(400).json({ error: "Invalid paperId" });
     }
@@ -163,52 +416,16 @@ export const buildPaperStats = async (req, res) => {
       });
     }
 
-    // -------- Check if PaperStats already exists --------
-    const existingStats = await paperStats.findOne({ paperId }).lean();
-    
-    if (existingStats) {
-      if (force === 'true') {
-        console.log(`[buildPaperStats] Force rebuilding existing stats for paperId: ${paperId}`);
-      } else {
-        console.log(`[buildPaperStats] Updating existing stats for paperId: ${paperId}`);
-      }
-    } else {
-      console.log(`[buildPaperStats] Creating new stats for paperId: ${paperId}`);
-    }
-    
-    // Log some basic info about what we're about to process
-    console.log(`[buildPaperStats] Paper has ${paper.questions?.length || 0} questions`);
-    
-    // Get total submission count for this paper
-    const totalSubmissions = await Submisstion.countDocuments({
-      paperId: new mongoose.Types.ObjectId(paperId),
-      status: "done",
-    });
-    console.log(`[buildPaperStats] Found ${totalSubmissions} completed submissions to analyze`);
-    
-    if (totalSubmissions === 0) {
-      console.log(`[buildPaperStats] No completed submissions found for paperId: ${paperId}`);
-      // Still create stats but with empty results
-    }
-
-    // -------- Upsert PaperStats - Replace all attributes with new values --------
+    // -------- Upsert PaperStats --------
     const updated = await paperStats
       .findOneAndUpdate(
         { paperId },
         {
-          $set: {
-            paperId,
-            QuestionResults: questionResults, // <-- array [{questionId, totalIncorrect}]
-            instituteStats, // <-- array per institute
-            updatedAt: new Date() // Add timestamp for when stats were last updated
-          }
+          paperId,
+          QuestionResults: questionResults, // <-- array [{questionId, totalIncorrect}]
+          instituteStats, // <-- array per institute
         },
-        { 
-          upsert: true, 
-          new: true, 
-          setDefaultsOnInsert: true,
-          runValidators: true // Ensure schema validation runs
-        }
+        { upsert: true, new: true, setDefaultsOnInsert: true }
       )
       .populate({
         path: "instituteStats.topStudents",
@@ -217,68 +434,14 @@ export const buildPaperStats = async (req, res) => {
       })
       .lean();
 
-    console.log(`[buildPaperStats] Successfully ${existingStats ? 'updated' : 'created'} stats for paperId: ${paperId}`);
-    
-    const actionType = existingStats 
-      ? (force === 'true' ? 'force rebuilt' : 'updated') 
-      : 'created';
-    
-    return res.status(200).json({ 
-      ok: true, 
-      data: updated,
-      message: `Paper stats ${actionType} successfully`,
-      summary: {
-        paperId: paperId,
-        questionsAnalyzed: questionResults.length,
-        institutesFound: instituteStats.length,
-        totalSubmissions: totalSubmissions,
-        actionTaken: actionType,
-        wasExisting: !!existingStats
-      }
-    });
+    return res.status(200).json({ ok: true, data: updated });
   } catch (err) {
     console.error("[buildPaperStats] error:", err);
-    
-    // Handle duplicate key error specifically
-    if (err.code === 11000) {
-      console.error("[buildPaperStats] Duplicate key error, attempting retry with findOneAndUpdate");
-      try {
-        // Retry with a direct update
-        const retryUpdate = await paperStats.findOneAndUpdate(
-          { paperId },
-          {
-            $set: {
-              QuestionResults: questionResults,
-              instituteStats,
-            }
-          },
-          { new: true, runValidators: true }
-        ).populate({
-          path: "instituteStats.topStudents",
-          select: "studentId score submittedAt",
-          model: "Submission",
-        }).lean();
-        
-        return res.status(200).json({ 
-          ok: true, 
-          data: retryUpdate,
-          message: 'Paper stats updated successfully (after retry)'
-        });
-      } catch (retryErr) {
-        console.error("[buildPaperStats] Retry failed:", retryErr);
-        return res.status(500).json({ 
-          error: "Failed to update paper stats", 
-          details: String(retryErr) 
-        });
-      }
-    }
-    
     return res
       .status(500)
       .json({ error: "Internal error", details: String(err) });
   }
 };
-
 /**
  * GET /paper-stats/:paperId
  * Fetch stats for a paperId.
